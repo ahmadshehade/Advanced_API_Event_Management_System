@@ -5,40 +5,61 @@ namespace App\Http\Requests\Events;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class UpdateEeventRequest extends FormRequest
 {
     public function authorize(): bool
     {
         $user = auth('api')->user();
-
-        // Only users with 'adminRole' can update events
         return $user && $user->hasRole('adminRole');
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
+    protected function prepareForValidation(): void
+    {
+        $eventId = $this->route('id');
+
+        if ($this->has('title')) {
+            $baseSlug = Str::slug($this->input('title'));
+            $slug = $baseSlug;
+            $counter = 1;
+
+            while (
+                DB::table('events')
+                ->where('slug', $slug)
+                ->where('id', '!=', $eventId)
+                ->exists()
+            ) {
+                $slug = $baseSlug . '-' . $counter++;
+            }
+
+            $this->merge(['slug' => $slug]);
+        }
+    }
+
+
     public function rules(): array
     {
         $eventId = $this->route('id');
+
         return [
+
             'event_type_id' => ['sometimes', 'exists:event_types,id'],
             'location_id' => ['sometimes', 'exists:locations,id'],
             'title' => ['sometimes', 'string', 'max:255', Rule::unique('events')->ignore($eventId)],
+            'slug' => ['sometimes', 'string', Rule::unique('events')->ignore($eventId)],
             'description' => ['sometimes', 'string'],
             'start_time' => ['sometimes', 'date', 'after_or_equal:now'],
             'end_time' => ['sometimes', 'date', 'after:start_time'],
             'newImages.*' => ['sometimes', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'status' => [ Rule::in(['upcoming', 'ongoing', 'ended'])],
+             'max_seats' => ['nullable', 'integer', 'min:1'],
+
 
         ];
     }
 
-    /**
-     * Custom error messages for validation.
-     */
     public function messages()
     {
         return [
@@ -48,6 +69,9 @@ class UpdateEeventRequest extends FormRequest
             'title.string' => 'The title must be a valid string.',
             'title.max' => 'The title may not be greater than 255 characters.',
             'title.unique' => 'This event title has already been taken.',
+
+            'slug.string' => 'The slug must be a valid string.',
+            'slug.unique' => 'This slug has already been taken.',
 
             'description.string' => 'The description must be a valid string.',
 
@@ -61,13 +85,12 @@ class UpdateEeventRequest extends FormRequest
             'newImages.*.file' => 'Each image must be a valid file.',
             'newImages.*.max' => 'Each image may not be greater than 2MB.',
             'newImages.*.mimes' => 'Each image must be of type: jpg, jpeg, png, webp.',
+            'status.in' => 'The status must be one of: upcoming, ongoing, or ended.',
+            'max_seats.integer' => 'The max seats must be an integer.',
+            'max_seats.min' => 'The max seats must be at least 1.',
         ];
     }
 
-
-    /**
-     * Custom response for failed authorization.
-     */
     protected function failedAuthorization()
     {
         throw new HttpResponseException(response()->json([

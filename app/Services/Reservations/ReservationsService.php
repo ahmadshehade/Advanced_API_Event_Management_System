@@ -20,15 +20,10 @@ class ReservationsService implements ReservationsInterface
         $user = auth('api')->user();
 
         if ($user->hasRole('adminRole')) {
-            $reservations = Reservation::with([
-                'user',
-                'event'
-            ])->get();
+            $reservations = Reservation::withRelations()->get();
         } else {
-            $reservations = Reservation::with([
-                'user',
-                'event'
-            ])->where('user_id', $user->id)->get();
+            $reservations = Reservation::withRelations()
+                ->ReservationNotCancelled()->where('user_id', $user->id)->get();
         }
 
 
@@ -53,63 +48,57 @@ class ReservationsService implements ReservationsInterface
     {
         try {
             $validatedData = $request->validated();
+
             if (!Gate::allows('create', Reservation::class)) {
-                throw new HttpResponseException(response()->json([
-                    'message' => 'Unauthorized to create reservation',
-                ], 403));
+                abort(403, 'Unauthorized to create this reservation');
             }
+
             $reservation = new Reservation();
             $reservation->fill($validatedData);
-            $reservation->user_id = auth('api')->user()->id;
+            $reservation->user_id = auth('api')->id();
             $reservation->save();
+
+            $reservation = $reservation->load(['user', 'event']);
+
             $data = [
-                'message' => 'Successfully Make Reservation ',
-                'data' => $reservation->with(['user', 'event'])->find($reservation->id),
+                'message' => 'Successfully made reservation',
+                'data' => $reservation,
                 'code' => 201
             ];
             return $data;
-        } catch (Exception  $e) {
-            throw new HttpResponseException(
-                response()->json([
-                    'message' => $e->getMessage()
-                ], 500)
-            );
+        } catch (Exception $e) {
+            throw new HttpResponseException(response()->json([
+                'message' => $e->getMessage()
+            ], 500));
         }
     }
+
 
     /**
      * Summary of update
      * @param mixed $id
      * @param mixed $request
      * @throws \Illuminate\Http\Exceptions\HttpResponseException
-     * @return array{code: int, data: Reservation|\Illuminate\Database\Eloquent\Collection<int, Reservation>, message: string}
+     * @return mixed|\Illuminate\Http\JsonResponse
      */
-    public function update($id, $request)
+    public function update($id,  $request)
     {
         try {
-            $reservation = Reservation::find($id);
-
+            $reservation = Reservation::where('id', $id)
+                ->reservationNotCancelled()->first();
             if (!$reservation) {
-                throw new HttpResponseException(response()->json([
-                    'message' => 'Reservation not found!',
-                ], 404));
+                abort(404, 'Reservation not found Or Reservation is cancelled!');
             }
-
-
 
             if (!Gate::allows('update', $reservation)) {
-                throw new HttpResponseException(response()->json([
-                    'message' => 'Unauthorized to update this reservation',
-                ], 403));
+                abort(403, 'Unauthorized to update this reservation');
             }
 
-            $validatedData = $request->validate([
-                'event_id' => ['sometimes', 'integer', 'exists:events,id'],
-                'seats_reserved' => ['required', 'integer', 'min:1'],
-            ]);
+            $validatedData = $request->validated();
 
             $reservation->update($validatedData);
-            $reservation->load(['user', 'event']);
+
+            $reservation->load(['event', 'user']);
 
             $data = [
                 'message' => 'Successfully updated reservation',
@@ -143,9 +132,7 @@ class ReservationsService implements ReservationsInterface
         $user = auth('api')->user();
 
         if (!Gate::allows('delete', $reservation)) {
-            throw new HttpResponseException(response()->json([
-                'message' => 'Unauthorized to delete this reservation',
-            ], 403));
+            abort(403, 'Unauthorized to delete this reservation');
         }
         $reservation->delete();
         $data = [
@@ -165,7 +152,8 @@ class ReservationsService implements ReservationsInterface
      */
     public function show($id)
     {
-        $reservation = Reservation::find($id);
+        $user = auth('api')->user();
+        $reservation = Reservation::withRelations()->find($id);
         if (!$reservation) {
             throw new HttpResponseException(
                 response()->json([
@@ -173,17 +161,22 @@ class ReservationsService implements ReservationsInterface
                 ], 404)
             );
         }
-
-
         if (!Gate::allows('view', $reservation)) {
-            throw new HttpResponseException(response()->json([
-                'message' => 'Unauthorized to view this reservation',
-            ], 403));
+            abort(403, 'Unauthorized to get this reservation');
+        }
+        if ($user->hasRole('userRole')) {
+            if (($reservation->event->status === 'ended') && ($reservation->status === 'cancelled')) {
+                throw new HttpResponseException(
+                    response()->json([
+                        'message' => 'Sorry, the event has ended!'
+                    ], 403)
+                );
+            }
         }
 
         $data = [
             'message' => 'Successfully get Reservation ',
-            'data' => $reservation->with(['user', 'event'])->find($reservation->id),
+            'data' => $reservation,
             'code' => 200
         ];
         return $data;

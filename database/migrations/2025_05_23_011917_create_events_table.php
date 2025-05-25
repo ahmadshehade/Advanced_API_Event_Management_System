@@ -18,6 +18,9 @@ return new class extends Migration
             $table->foreignId('location_id')->constrained('locations')->onDelete('cascade');
             $table->string('title');
             $table->text('description');
+            $table->enum('status', ['upcoming', 'ongoing', 'ended'])->default('upcoming'); 
+            $table->integer('max_seats')->nullable();
+            $table->string('slug')->unique();
             $table->dateTime('start_time');
             $table->dateTime('end_time');
             $table->timestamps();

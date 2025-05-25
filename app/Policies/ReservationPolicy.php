@@ -32,7 +32,8 @@ class ReservationPolicy
         if ($user->hasRole('adminRole')) {
             return true;
         }
-        return $reservation->user_id === $user->id;
+        return $reservation->user_id === $user->id && 
+        ($user->can('view reservations') && $user->hasRole('userRole'));
     }
 
     /**
@@ -49,9 +50,11 @@ class ReservationPolicy
      */
     public function update(User $user, Reservation $reservation): bool
     {
-        return( $user->hasRole('userRole') &&
-            ($user->can('edit reservation') && $user->id === $reservation->user_id)
-            ||$user->hasRole('adminRole') &&$user->id===$reservation->user_id);
+        return (
+            ($user->hasRole('userRole') && $user->can('edit reservation') && $user->id === $reservation->user_id)
+            ||
+            ($user->hasRole('adminRole') && $user->id === $reservation->user_id)
+        );
     }
 
     /**

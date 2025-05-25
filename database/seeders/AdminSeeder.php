@@ -27,13 +27,13 @@ class AdminSeeder extends Seeder
         // Permissions for admin (includes all reservation permissions)
         $adminPermissions = [
             // Event Type
-            'create type', 'update type', 'delete type',
+            'create type', 'update type', 'delete type','view eventType','view all eventType',
 
             // Events
             'create event', 'edit event', 'delete event', 'view event',
 
             // Location
-            'create location', 'edit location', 'delete location', 'view location',
+            'create location', 'edit location', 'delete location', 'view location','view all locations',
 
             // Users
             'view users', 'edit users', 'delete users', 'register users',
@@ -63,13 +63,20 @@ class AdminSeeder extends Seeder
 
         // Permissions for User Role (restricted to own reservations logically via policies)
         $userPermissions = [
+            'view eventType',
+            'view all eventType',
+            //event
             'view event',
+            'view all event',
+            //location
             'view location',
+            'view all locations',
+            //reservation
             'view reservations',      
             'create reservation',
             'edit reservation',       
             'cancel reservation',   
-            'upload image',          
+                     
           
         ];
 

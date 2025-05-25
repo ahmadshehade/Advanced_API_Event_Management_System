@@ -19,7 +19,8 @@ class EventPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('userRole') || $user->can('view event');
+        return $user->hasRole('userRole') || $user->can(' view all event');
+       
     }
 
     /**
@@ -27,7 +28,7 @@ class EventPolicy
      */
     public function view(User $user, Event $event): bool
     {
-        return $user->hasRole('userRole');
+        return $user->hasRole('userRole')&&$user->can('view event');
     }
 
     /**

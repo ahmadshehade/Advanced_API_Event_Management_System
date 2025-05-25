@@ -16,7 +16,10 @@ class Event extends Model
         'start_time',
         'end_time',
         'event_type_id',
-        'location_id'
+        'location_id',
+        'slug',
+        'status',
+        'max_seats'
     ];
 
     protected  $guarded = ['user_id'];
@@ -62,11 +65,12 @@ class Event extends Model
             'location',
             'eventType',
             'mainImage',
-              'images',
+            'images',
         ])
             ->withCount(['reservations', 'images'])
             ->withSum('reservations', 'seats_reserved');
     }
+  
 
     /**
      * Summary of title

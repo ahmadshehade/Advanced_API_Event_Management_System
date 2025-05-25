@@ -8,10 +8,19 @@ class Reservation extends Model
 {
     protected $tabel = "reservations";
 
-    protected $fillable = ['event_id', 'seats_reserved'];
+    protected $fillable = ['event_id', 'seats_reserved','status','confirmed_at'];
 
     protected $guarded = ['user_id'];
 
+
+    public function scopeWithRelations($query){
+        $query->with(['event','user']);
+    }
+
+    public function scopeReservationNotCancelled($query)
+    {
+        return $query->where('status', '!=', 'cancelled');
+    }
 
     /**
      * Summary of user

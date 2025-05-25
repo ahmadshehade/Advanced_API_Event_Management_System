@@ -14,7 +14,8 @@ class LocationPolicy
     public function viewAny(User $user): bool
     {
         return $user->hasRole('adminRole') ||
-            ($user->can('view location') && $user->hasRole('userRole'));
+            ($user->can('view location') && ($user->hasRole('userRole')
+        && $user->can('view all locations')));
     }
 
     /**

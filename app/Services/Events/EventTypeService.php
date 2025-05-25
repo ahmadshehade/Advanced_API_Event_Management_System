@@ -72,7 +72,6 @@ class EventTypeService implements EventTypeInterface
             DB::beginTransaction();
             $validatedData = $request->validated();
             $eventType = EventType::find($id);
-
             if (!$eventType) {
                 throw  new HttpResponseException(
                     response()->json([

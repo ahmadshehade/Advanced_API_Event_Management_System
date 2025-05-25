@@ -44,6 +44,10 @@ class UpdateEventTypeRequest extends FormRequest
         ];
     }
 
+    /**
+     * Summary of messages
+     * @return array{name.max: string, name.string: string, name.unique: string, newImage.image: string, newImage.max: string, newImage.mimes: string}
+     */
     public function messages(): array
     {
         return [
@@ -56,7 +60,12 @@ class UpdateEventTypeRequest extends FormRequest
             'newImage.max' => 'The new image must not be larger than 2MB.',
         ];
     }
-
+    /**
+     * Summary of failedValidation
+     * @param \Illuminate\Contracts\Validation\Validator $validator
+     * @throws \Illuminate\Http\Exceptions\HttpResponseException
+     * @return never
+     */
     protected function failedValidation(Validator $validator)
     {
         throw new HttpResponseException(

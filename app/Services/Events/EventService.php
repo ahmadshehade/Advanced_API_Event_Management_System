@@ -21,12 +21,17 @@ class EventService implements EventInterface
      */
     public  function index()
     {
+        $user = auth('api')->user();
         if (!Gate::allows('viewAny', Event::class)) {
             throw new HttpResponseException(response()->json([
                 'message' => 'Unauthorized to get All Event',
             ], 403));
         }
-        $events = Event::withDetails()->get();
+        if ($user->hasRole('adminRole')) {
+            $events = Event::withDetails()->get();
+        } else {
+            $events = Event::withDetails()->where('status', 'upcoming')->get();
+        }
         if ($events->isEmpty()) {
             throw  new HttpResponseException(
                 response()->json([
@@ -53,38 +58,44 @@ class EventService implements EventInterface
     {
         try {
             DB::beginTransaction();
+
             $validatedData = $request->validated();
+
             $event = new Event();
             $event->event_type_id = $validatedData['event_type_id'];
             $event->location_id = $validatedData['location_id'];
             $event->title = $validatedData['title'];
+            $event->slug = $validatedData['slug'];
             $event->description = $validatedData['description'];
+            $event->status = $validatedData['status'];
+            $event->max_seats = $validatedData['max_seats'] ?? null;
             $event->start_time = $validatedData['start_time'];
             $event->end_time = $validatedData['end_time'];
-            $event->user_id = auth('api')->user()->id;
-            $event->save();
+            $event->user_id = auth('api')->id();
 
+            $event->save();
 
             $this->uploadImages(
                 $request,
                 'images',
                 Event::class,
                 $event->id,
-                'Events/' . $event->title . '-' . $event->id,
+                'Events/' . $event->slug
             );
+
             DB::commit();
+
             $message = 'Event created successfully';
             if ($event->wasRecentlyCreated) {
-                $message = ('New Event Created: ' . $event->title);
+                $message = 'New Event Created: ' . $event->title;
             }
-            $data = [
+
+            return [
                 'message' => $message,
                 'data' => $event->load('images'),
                 'code' => 200
             ];
-
-            return $data;
-        } catch (Exception  $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             throw new HttpResponseException(
                 response()->json([
@@ -94,12 +105,13 @@ class EventService implements EventInterface
         }
     }
 
+
     /**
      * Summary of update
      * @param mixed $id
      * @param mixed $request
      * @throws \Illuminate\Http\Exceptions\HttpResponseException
-     * @return array{code: int, data: Event, message: string}
+     * @return array{code: int, data: Event|\Illuminate\Database\Eloquent\Collection<int, Event>, message: string}
      */
     public function update($id, $request)
     {
@@ -127,6 +139,7 @@ class EventService implements EventInterface
 
             if (isset($validatedData['title'])) {
                 $event->title = $validatedData['title'];
+                $event->slug = $validatedData['slug'];
             }
 
             if (isset($validatedData['description'])) {
@@ -140,7 +153,30 @@ class EventService implements EventInterface
             if (isset($validatedData['end_time'])) {
                 $event->end_time = $validatedData['end_time'];
             }
-
+            if (isset($validatedData['status'])) {
+                $event->status = $validatedData['status'];
+                if ($validatedData['status'] === 'ongoing') {
+                    $reservations = $event->reservations()->get();
+                    foreach ($reservations as $reservation) {
+                        $reservation->update([
+                            'status' => 'confirmed',
+                            'confirmed_at' => now()
+                        ]);
+                    }
+                }
+                if ($validatedData['status'] === 'ended') {
+                    $reservations = $event->reservations()->get();
+                    foreach ($reservations as $reservation) {
+                        $reservation->update([
+                            'status' => 'cancelled',
+                            'confirmed_at' => null
+                        ]);
+                    }
+                }
+            }
+            if (isset($validatedData['max_seats'])) {
+                $event->max_seats = $validatedData['max_seats'];
+            }
 
             if ($event->isDirty()) {
                 $event->save();
@@ -160,7 +196,7 @@ class EventService implements EventInterface
                     'newImages',
                     Event::class,
                     $event->id,
-                    'Events/' . $event->title . '-' . $event->id
+                    'Events/' . $event->title
                 );
             }
 
@@ -180,6 +216,7 @@ class EventService implements EventInterface
             );
         }
     }
+
 
 
 
@@ -223,7 +260,14 @@ class EventService implements EventInterface
      */
     public function show($id)
     {
-        $event = Event::withDetails()->where('id', $id)->first();
+        $user = auth('api')->user();
+        if ($user->hasRole('adminRole')) {
+            $event = Event::withDetails()->where('id', $id)->first();
+        } else {
+            $event = Event::withDetails()
+                ->where('id', $id)
+                ->where('status', 'upcoming')->first();
+        }
         if (!$event) {
             throw  new HttpResponseException(
                 response()->json([
